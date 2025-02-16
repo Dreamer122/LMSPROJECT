@@ -15,7 +15,7 @@ exports.SignUp=async (req,res)=>{
         // validation
         if(!firstName || !lastName || !password || !email || !phone || !accountType || !confirmPassword || !otp){
             return res.status(400).json({
-                status:false,
+                success:false,
                 message:"Please fill all the fields",
                 
             });
@@ -24,7 +24,7 @@ exports.SignUp=async (req,res)=>{
         const userExist=await User.findOne({email});
         if(userExist){
             return res.status(400).json({
-                status:false,
+                success:false,
                 message:"Email already exists",
             })
         }
@@ -32,7 +32,7 @@ exports.SignUp=async (req,res)=>{
         // match password and confirm password
         if(password!==confirmPassword){
             return res.status(400).json({
-                status:false,
+                success:false,
                 message:"Password and confirm password do not match",
                 })
                 }
@@ -45,13 +45,13 @@ exports.SignUp=async (req,res)=>{
                 const result=OTP.find({email}).sort({createdAt:-1}).limit(1);
                 if(result.length==0){
                     return res.status(400).json({
-                        status:false,
+                        success:false,
                         message:"Invalid OTP",
                         })
                 }
                 else if(result[0]!==otp){
                     return res.status(400).json({
-                        status:false,
+                        success:false,
                         message:"Invalid OTP",
                         })
                 }
@@ -81,7 +81,7 @@ exports.SignUp=async (req,res)=>{
 
                     // send response
                   return  res.status(201).json({
-                        status:true,
+                        success:true,
                         message:"User created successfully",
                         user:user
                         })
@@ -90,7 +90,7 @@ exports.SignUp=async (req,res)=>{
     catch(error){
 
       return  res.status(500).json({
-            status:false,
+            success:false,
             message:"Internal server error",
             error:error.message
         })
@@ -106,7 +106,7 @@ exports.sendOTP=async(req,res)=>{
         // validation
         if(!email){
             return res.status(400).json({
-                status:false,
+                success:false,
                 message:"Email is required"
                 })
                 }
@@ -125,7 +125,7 @@ exports.sendOTP=async(req,res)=>{
                }).save()
 
              return  res.status(201).json({
-                status:true,
+                success:true,
                 message:"OTP sent successfully",
                 otp:result
                })
@@ -133,7 +133,7 @@ exports.sendOTP=async(req,res)=>{
     }
     catch(error){
        return res.status(500).json({
-            status:false,
+            success:false,
             message:"error occcured while creating otp ",
             error:error.message
             })
@@ -149,7 +149,7 @@ exports.login=async(req,res)=>{
         // validation
         if(!email || !password){
             return res.status(400).json({
-                status:false,
+                success:false,
                 message:"Email and password are required"
                 })
         }
@@ -157,7 +157,7 @@ exports.login=async(req,res)=>{
         const user=await User.findOne({email}).populate("additionalDetails")
         if(!user){
             return res.status(404).json({
-                status:false,
+                success:false,
                 message:"User not found"
                 })
              }
@@ -166,7 +166,7 @@ exports.login=async(req,res)=>{
              const isMatch=await bcrypt.compare(password,user.password)
              if(!isMatch){
                 return res.status(400).json({
-                    status:false,
+                    success:false,
                     message:"Invalid password"
                     })
              }
@@ -188,7 +188,7 @@ exports.login=async(req,res)=>{
                 user.password=undefined
 
                return res.cookie("token",token,options).status(200).json({
-                status:true,
+                success:true,
                 message:"Login Successfull",
                 token:token,
                 user,
@@ -200,7 +200,7 @@ exports.login=async(req,res)=>{
     }
     catch(error){
         return res.status(500).json({
-            status:false,
+            success:false,
             message:error.message +"login failure please try again later "
             
         })
