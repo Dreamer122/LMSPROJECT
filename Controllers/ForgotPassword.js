@@ -1,5 +1,5 @@
 const User=require("../Models/User");
-const crs=require("crypto-random-string")
+const cryptoRandomString=require("crypto-random-string")
 const bcrypt=require("bcrypt")
 const {mailSender}=require("../Utils/mailSender")
 
