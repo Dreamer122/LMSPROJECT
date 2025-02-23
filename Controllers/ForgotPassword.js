@@ -1,9 +1,10 @@
 const User=require("../Models/User");
-const cryptoRandomString=require("crypto-random-string")
+// const cryptoRandomString=require("crypto-random-string")
+const crypto=require("crypto")
 const bcrypt=require("bcrypt")
 const {mailSender}=require("../Utils/mailSender")
 
-exports.forgetPasswordToken=async()=>{
+exports.forgetPasswordToken=async(req,res)=>{
     try{
         const {email}=req.body;
 
@@ -23,10 +24,10 @@ exports.forgetPasswordToken=async()=>{
                 }
 
             // generate random string 
-            const token=cryptoRandomString({length: 15});
+            const token=crypto.randomUUID();
 
             // add token in user data
-                const updatedData=User.findOneAndDelete({email},{
+                const updatedData= await User.findOneAndDelete({email},{
                     token:token,
                     tokenExpriresIn:Date.now()+5*60*1000
                 },{new:true})

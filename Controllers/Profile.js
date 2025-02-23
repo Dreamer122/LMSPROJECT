@@ -1,131 +1,240 @@
-const User=require("../Models/User");
-const Profile=require("../Models/Profile");
-const Course=require("../Models/Course");
-const courseProgress=require("../Models/CourseProgress");
-const {uploadImageToCloudinary}=require("../Utils/imageUploader")
+const Profile = require("../Models/Profile")
+const CourseProgress = require("../Models/CourseProgress")
 
-// update profile
+const Course = require("../Models/Course")
+const User = require("../Models/User")
+const { uploadImageToCloudinary } = require("../Utils/imageUploader")
+const mongoose = require("mongoose")
+const { convertSecondsToDuration } = require("../Utils/secToDuration")
+// Method for updating a profile
+exports.updateProfile = async (req, res) => {
+  try {
+    const {
+      firstName = "",
+      lastName = "",
+      dateOfBirth = "",
+      about = "",
+      contactNumber = "",
+      gender = "",
+    } = req.body
+    console.log("update profile=",req.body)
 
-exports.updateProfile=async=>(req,res){
-    try{
-        // date fetch
-        const {firstName="",lastName="",phone="",
-            gender="",dateOfBirth="",about=""
-        }=req.body
+    const id = req.user.id
 
-        const id=req.body.User
+    // Find the profile by id
+    const userDetails = await User.findById(id)
+    const profile = await Profile.findById(userDetails.additionalDetails)
 
-        //get user data
-        const user=await User.findById(id);
+    const user = await User.findByIdAndUpdate(id, {
+      firstName,
+      lastName,
+    })
+    await user.save()
 
-        // update user data
-        const updatedUser=await User.findByIdAndUpdate(id,{
-            firstName,lastName,phone
-        },{new:true})
+    // Update the profile fields
+    profile.dateOfBirth = dateOfBirth
+    profile.about = about
+    profile.contactNumber = contactNumber
+    profile.gender = gender
 
-        //update profile data
-        const AD=await Profile.findById(user.additionalDetails);
+    // Save the updated profile
+    await profile.save()
 
-        AD.gender=gender
-        AD.dateOfBirth=dateOfBirth
-        AD.about=about
+    // Find the updated user details
+    const updatedUserDetails = await User.findById(id)
+      .populate("additionalDetails")
+      .exec()
 
-        await AD.save();
-
-        //  get all data
-        const updatedUserDetails=await User.findById(id).
-        populate("additionalDetails").exec();
-
-        return res.status(204).json({
-            success:false,
-            message:"Profile updated successfully",
-            data:updatedUserDetails        
-        })
-
-
-    }
-    catch(error){
-        return res.status(500).json({
-            success:false,
-            message:"Error updating profile",
-            error:error.message
-            })
-
-    }
-}
-
-// get ALL user details
-
-// HW do this controller
-
-// delete account
-exports.deleteAccount=async(req,res)=>{
-// id get 
-try{
-    const id=req.body.user
-
-    // get user data
-    const user=await User.findById(id);
-    // delete user data
-    // delete additional details
-    await Profile.findByIdAndDelete(user.additionalDetails)
-
-    // unenrolled courses
-    for(let courseId of user.courses){
-        await Course.findByIdAndUpdate(courseId,{
-            $pull:{"studentsEnrolled":id}
-        })
-    }
-// progress course delete
-    await courseProgress.deleteMany(id)
-    // delete userdata
-
-    await User.findByIdAndDelete(id)
-    return res.status(204).json({
-        success:true,
-        message:"Account deleted successfully"
-        })
-
-
-}
-catch(error){
+    return res.json({
+      success: true,
+      message: "Profile updated successfully",
+      updatedUserDetails,
+    })
+  } catch (error) {
+    console.log(error)
     return res.status(500).json({
-        success:false,
-        message:"Error deleting account",
-        error:error.message
-        })
+      success: false,
+      error: error.message,
+    })
+  }
 }
 
+exports.deleteAccount = async (req, res) => {
+  try {
+    const id = req.user.id
+    console.log(id)
+    const user = await User.findById({ _id: id })
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      })
+    }
+    // Delete Assosiated Profile with the User
+    await Profile.findByIdAndDelete({
+      _id: new mongoose.Types.ObjectId(user.additionalDetails),
+    })
+    for (const courseId of user.courses) {
+      await Course.findByIdAndUpdate(
+        courseId,
+        { $pull: { studentsEnrolled: id } },
+        { new: true }
+      )
+    }
+    // Now Delete User
+    await User.findByIdAndDelete({ _id: id })
+    res.status(200).json({
+      success: true,
+      message: "User deleted successfully",
+    })
+    await CourseProgress.deleteMany({ userId: id })
+  } catch (error) {
+    console.log(error)
+    res
+      .status(500)
+      .json({ success: false, message: "User Cannot be deleted successfully" })
+  }
 }
 
+exports.getAllUserDetails = async (req, res) => {
+  try {
+    const id = req.user.id
+    const userDetails = await User.findById(id)
+      .populate("additionalDetails")
+      .exec()
+    console.log(userDetails)
+    res.status(200).json({
+      success: true,
+      message: "User Data fetched successfully",
+      data: userDetails,
+    })
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    })
+  }
+}
 
-// update display picture 
-exports.updateDisplayPicture=async(req,res)=>{
-    try{
-        // get id
-        const userId=req.user.id
-        // get image 
-        const imagefile=req.files.displayPicture
+exports.updateDisplayPicture = async (req, res) => {
+  try {
+    const displayPicture = req.files.displayPicture
+    const userId = req.user.id
+    const image = await uploadImageToCloudinary(
+      displayPicture,
+      process.env.FOLDER_NAME,
+      1000,
+      1000
+    )
+    console.log(image)
+    const updatedProfile = await User.findByIdAndUpdate(
+      { _id: userId },
+      { image: image.secure_url },
+      { new: true }
+    )
+    res.send({
+      success: true,
+      message: `Image Updated successfully`,
+      data: updatedProfile,
+    })
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    })
+  }
+}
 
-        // upload image
-        const image=await uploadImageToCloudinary(imagefile,process.env.FOLDER_NAME,1000,1000)
-        // update user data
-        const updatedData=await User.findByIdAndUpdate({_id:userId},{
-            image:image.secure_url
-        },{new:true})
-
-        return res.status(204).json({
-            success:true,
-            message:"Display picture updated successfully",
-            data:updatedData
-        })
-
+exports.getEnrolledCourses = async (req, res) => {
+  try {
+    const userId = req.user.id
+    let userDetails = await User.findOne({
+      _id: userId,
+    })
+      .populate({
+        path: "courses",
+        populate: {
+          path: "courseContent",
+          populate: {
+            path: "subSection",
+          },
+        },
+      })
+      .exec()
+    userDetails = userDetails.toObject()
+    var SubsectionLength = 0
+    for (var i = 0; i < userDetails.courses.length; i++) {
+      let totalDurationInSeconds = 0
+      SubsectionLength = 0
+      for (var j = 0; j < userDetails.courses[i].courseContent.length; j++) {
+        totalDurationInSeconds += userDetails.courses[i].courseContent[
+          j
+        ].subSection.reduce((acc, curr) => acc + parseInt(curr.timeDuration), 0)
+        userDetails.courses[i].totalDuration = convertSecondsToDuration(
+          totalDurationInSeconds
+        )
+        SubsectionLength +=
+          userDetails.courses[i].courseContent[j].subSection.length
+      }
+      let courseProgressCount = await CourseProgress.findOne({
+        courseID: userDetails.courses[i]._id,
+        userId: userId,
+      })
+      courseProgressCount = courseProgressCount?.completedVideos.length
+      if (SubsectionLength === 0) {
+        userDetails.courses[i].progressPercentage = 100
+      } else {
+        // To make it up to 2 decimal point
+        const multiplier = Math.pow(10, 2)
+        userDetails.courses[i].progressPercentage =
+          Math.round(
+            (courseProgressCount / SubsectionLength) * 100 * multiplier
+          ) / multiplier
+      }
     }
-    catch(error){
-        return res.status(500).json({
-            success:false,
-            message:"Error updating display picture",
-            error:error.message
-            })
+
+    if (!userDetails) {
+      return res.status(400).json({
+        success: false,
+        message: `Could not find user with id: ${userDetails}`,
+      })
     }
+    return res.status(200).json({
+      success: true,
+      data: userDetails.courses,
+    })
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    })
+  }
+}
+
+exports.instructorDashboard = async (req, res) => {
+  try {
+    const courseDetails = await Course.find({ instructor: req.user.id })
+
+    const courseData = courseDetails.map((course) => {
+      const totalStudentsEnrolled = course.studentsEnroled.length
+      const totalAmountGenerated = totalStudentsEnrolled * course.price
+
+      // Create a new object with the additional fields
+      const courseDataWithStats = {
+        _id: course._id,
+        courseName: course.courseName,
+        courseDescription: course.courseDescription,
+        // Include other course properties as needed
+        totalStudentsEnrolled,
+        totalAmountGenerated,
+      }
+
+      return courseDataWithStats
+    })
+
+    res.status(200).json({ courses: courseData })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: "Server Error" })
+  }
 }
